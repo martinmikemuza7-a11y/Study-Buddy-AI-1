@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Study Buddy">
+  <rect width="128" height="128" rx="32" fill="#176b5c"/>
+  <path d="M27 39.5c0-4.7 3.8-8.5 8.5-8.5h57c4.7 0 8.5 3.8 8.5 8.5v38c0 4.7-3.8 8.5-8.5 8.5h-57c-4.7 0-8.5-3.8-8.5-8.5v-38Z" fill="#fffdf8"/>
+  <path d="M42 49h22m-22 12h44M42 73h28" stroke="#176b5c" stroke-width="7" stroke-linecap="round"/>
+  <path d="m82 88 10 12" stroke="#f3aa86" stroke-width="7" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,1 @@
+- [Package compatibility](package-compatibility.md) — OpenAPI codegen requires Zod 4; workspace release-age filtering may require mature Clerk versions.
