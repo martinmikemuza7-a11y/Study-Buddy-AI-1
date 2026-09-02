@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Study Buddy AI"
+description = "A mobile-first AI study workspace for organizing courses, uploading learning materials, planning study sessions, and getting course-aware tutoring with adaptive active recall."
+version = "1.0.0"
+id = "artifacts/study-buddy-ai"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19087
+
+[services.development]
+run = "pnpm --filter @workspace/study-buddy-ai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/study-buddy-ai", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/study-buddy-ai/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19087"
+BASE_PATH = "/"
