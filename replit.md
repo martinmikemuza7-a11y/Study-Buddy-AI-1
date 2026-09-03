@@ -10,7 +10,7 @@ Study Buddy AI is a private, mobile-first learning workspace for organizing cour
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL`, managed Clerk keys, and private object-storage variables
-- Optional env: `OPENAI_API_KEY` enables tutor and Active Learning generation; without it those features return an explicit unavailable response
+- Optional env: `GEMINI_API_KEY` enables Gemini-powered tutor, Active Learning, answer evaluation, and image text extraction; without it those features return an explicit unavailable response
 
 ## Stack
 
@@ -26,7 +26,7 @@ Study Buddy AI is a private, mobile-first learning workspace for organizing cour
 - `artifacts/study-buddy-ai/src/App.tsx` — authenticated routes, responsive shell, course workspace, study plan, tutor, and branded Clerk screens
 - `artifacts/study-buddy-ai/src/index.css` — Study Buddy visual system and responsive layout
 - `artifacts/api-server/src/routes/study.ts` — protected course, material, session, tutor, progress, and Active Learning API routes
-- `artifacts/api-server/src/lib/materialProcessing.ts` — private object download, document extraction, chunking, and processing lifecycle
+- `artifacts/api-server/src/lib/materialProcessing.ts` — private object download, document/image extraction, chunking, and processing lifecycle
 - `lib/api-spec/openapi.yaml` — source of truth for generated client hooks and Zod response schemas
 - `lib/db/src/schema/` — Drizzle tables for courses, materials/chunks, sessions, tutor history, and adaptive learning results
 
@@ -40,7 +40,7 @@ Study Buddy AI is a private, mobile-first learning workspace for organizing cour
 
 ## Product
 
-Authenticated learners can create unlimited courses, upload course-specific PDFs, Word files, slide decks, and text, see real processing states, manage study sessions, review adaptive progress, ask a tutor with uploaded-material sources, optionally add real Wikipedia context, and start scheduled Active Learning questions.
+Authenticated learners can create unlimited courses, upload course-specific PDFs, Word files, slide decks, text, and images, see real processing states, manage study sessions, review adaptive progress, ask a Gemini-powered tutor with uploaded-material sources, optionally add real Wikipedia context, and start scheduled Active Learning questions.
 
 ## User preferences
 
@@ -50,7 +50,7 @@ Authenticated learners can create unlimited courses, upload course-specific PDFs
 
 - Generated Zod schemas use `zod/v4`; keep the workspace Zod catalog on v4 before rerunning API codegen.
 - The public API health check is `/api/healthz`; all study data routes require Clerk authentication.
-- The AI provider is intentionally optional in development because the workspace may not have a configured provider.
+- Gemini is intentionally optional in development; tutor and Active Learning return an explicit unavailable response if `GEMINI_API_KEY` is not configured.
 
 ## Pointers
 

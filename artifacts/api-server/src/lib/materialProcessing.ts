@@ -5,6 +5,7 @@ import mammoth from "mammoth";
 import { and, eq } from "drizzle-orm";
 import { db, materialChunksTable, materialsTable } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
+import { extractImageText } from "./ai";
 
 const storage = new ObjectStorageService();
 
@@ -54,7 +55,7 @@ async function extractText(buffer: Buffer, contentType: string, name: string): P
     return slides.join("\n");
   }
   if (contentType.startsWith("image/")) {
-    throw new Error("Image OCR is unavailable until an AI provider is configured");
+    return extractImageText(buffer, contentType);
   }
   return buffer.toString("utf8");
 }

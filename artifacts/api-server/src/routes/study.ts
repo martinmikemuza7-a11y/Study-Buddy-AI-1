@@ -307,7 +307,7 @@ router.post("/courses/:courseId/tutor", async (req, res): Promise<void> => {
     }).returning();
     res.json(AskTutorResponse.parse({ answer, sources, webUsed: webContext.length > 0, historyId: history.id }));
   } catch (error) {
-    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add an OpenAI key to enable tutoring." }); return; }
+    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to enable tutoring." }); return; }
     req.log.error({ err: error }, "Tutor generation failed");
     res.status(500).json({ error: "Tutor could not respond right now" });
   }
@@ -382,7 +382,7 @@ router.post("/courses/:courseId/learning/next", async (req, res): Promise<void> 
       due: true,
     }));
   } catch (error) {
-    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add an OpenAI key to enable Active Learning." }); return; }
+    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to enable Active Learning." }); return; }
     req.log.error({ err: error }, "Active Learning generation failed");
     res.status(500).json({ error: "Could not generate a question right now" });
   }
@@ -422,7 +422,7 @@ router.post("/courses/:courseId/learning/answers", async (req, res): Promise<voi
     const nextDifficulty = correctCount >= 8 ? "advanced" : correctCount >= 4 ? "confident" : correctCount >= 1 ? "developing" : "beginner";
     res.json(SubmitLearningAnswerResponse.parse({ result, feedback, explanation, nextDifficulty, resultId: saved.id }));
   } catch (error) {
-    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add an OpenAI key to evaluate answers." }); return; }
+    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to evaluate answers." }); return; }
     req.log.error({ err: error }, "Active Learning evaluation failed");
     res.status(500).json({ error: "Could not evaluate that answer right now" });
   }
