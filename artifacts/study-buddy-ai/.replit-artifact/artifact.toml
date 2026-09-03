@@ -17,7 +17,7 @@ run = "pnpm --filter @workspace/study-buddy-ai run dev"
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/study-buddy-ai", "run", "build" ]
 serve = "static"
-publicDir = "artifacts/study-buddy-ai/dist/public"
+publicDir = "artifacts/study-buddy-ai/dist"
 
 [[services.production.rewrites]]
 from = "/*"
