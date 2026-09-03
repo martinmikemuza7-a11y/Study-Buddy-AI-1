@@ -1,0 +1,65 @@
+A quick flag before the doc: you pasted what looks like a **live Gemini API key** directly in chat. That's a credential, not something that should go in a document or be handled this way — anyone who sees this conversation (support staff, logs, screenshots) could grab it and rack up usage on your account. I won't embed it in the spec below.
+
+**What I'd do right now:** rotate/regenerate that key in Google AI Studio (or Google Cloud console) and treat the one you just pasted as compromised. Then store the new key server-side only, as an environment variable (`GEMINI_API_KEY`), never in a config file that could be committed to a repo or referenced client-side.
+
+Here's the updated 800-word spec — ChatGPT Study Mode references removed, Gemini API specified as the model provider, key handling called out as a security requirement.
+
+---
+
+**Upgrade My AI Study App**
+
+**Inspect Before Changing**
+Inspect the existing frontend, backend, database, auth, file storage, AI/RAG system, and APIs. Reuse working functionality — don't rebuild unnecessarily or fake features. If something can't be implemented on the current stack, build the closest real solution and clearly flag the limitation.
+
+**1. Home & Navigation**
+Remove Study Pits and unnecessary Home content. Active Learning lives inside the AI engine only — never a permanent Home card/section — appearing only when a scheduled question is due.
+
+Clean, modern, mobile-first Home page: study illustration, subtle usage animation, Courses/Subjects section, prominent Create Course button, unlimited courses, course cards showing name, material count, progress, next session, Study/Ask AI actions.
+
+Nav: Home, Courses/Subjects, Study, AI Tutor/Chat. Fully responsive and touch-friendly on Android and desktop.
+
+**2. Courses & Subjects**
+Unlimited courses. Each stores: name/description, materials, RAG/indexed content, study sessions, Active Learning settings, Q&A history, progress — isolated storage per course. Never mix files, knowledge, or AI context across courses.
+
+**3. File Upload & Processing**
+Per-course "+ Upload Materials" supporting PDF, DOC/DOCX, PPT/PPTX, JPG/PNG, and other available formats. Show file name, type, upload date, status, delete option. Real states only: Uploading → Processing → Ready/Failed — never mark failed files as Ready. Extract text from PDF/Word/PowerPoint; OCR/vision for images where available. Validate type/size with useful error messages.
+
+**4. Course-Specific RAG**
+Pipeline: Upload → Extract → Clean/Chunk → Embed/Index → Store with Course ID → Retrieve → Generate. Retrieval always scoped to authenticated user + selected course. AI primarily uses that course's materials, showing source document/page/slide where possible. Never fabricate sources, citations, or processing status.
+
+**5. AI Tutor (Gemini API)**
+Use the **Gemini API** as the model provider for tutoring, question generation, and evaluation — replacing any ChatGPT Study Mode integration entirely. Per-course tutor supporting: explain topic, summarize notes, ELI-beginner, give examples, generate practice questions, identify key concepts, test me on this chapter. Clear explanations, follow-up questions, hints, gap identification, wrong-answer explanations, and difficulty that adapts to real performance. Uses course RAG when relevant; never exposes internal reasoning — concise educational answers only.
+
+The Gemini API key must be stored server-side as an environment variable, never hardcoded, never sent to the client, and never committed to version control.
+
+**6. Optional Web Search**
+ON/OFF toggle. OFF: use course materials + Gemini's existing knowledge, no web search. ON: search course materials first, use web only when info is missing/outdated/needs verification, and clearly label uploaded-material vs. web-sourced info. Prefer free/low-cost search options already supported by the platform; avoid unnecessary paid APIs beyond Gemini itself.
+
+**7. Study Calendar**
+Dedicated Study tab. Users pick course, date, start time, duration (e.g., Biology — Sept 10 — 18:00 — 45 min). Create/edit/delete sessions, view upcoming/past sessions, calendar display.
+
+**8. Active Learning Engine**
+Lives in the AI engine, not the UI as a standalone feature. Configurable per course: start/end time, question frequency, number of questions, question type (Multiple Choice, True/False, Short Answer) — generated via Gemini, primarily from course RAG content.
+
+Flow: scheduled question due → identify course → retrieve content → generate question (Gemini) → user answers/skips/dismisses/postpones → evaluate → feedback/explanation → record result → adapt future questions. Avoid unnecessary interruptions.
+
+**9. Adaptive Learning & Progress**
+Use real answer history to adapt: correct → increase difficulty; incorrect → explain, give an easier follow-up, revisit later. Track per course: weak topics, correct/incorrect counts, question history, difficulty level, progress. No fake performance data.
+
+**10. Security, UX & Reliability**
+Every course-dependent request enforces authenticatedUserId + selectedCourseId — no cross-user or cross-course data access. Gemini API key and all secrets stay server-side only. Validate uploads; handle loading/empty/success/error states. Subtle animations for AI loading, processing, questions, feedback, progress, transitions. Fast, accessible, uncluttered, beginner-friendly.
+
+**11. Implementation Order**
+1. Inspect app → redesign nav/Home → remove Study Pits.
+2. Courses → unlimited creation → isolated storage → uploads.
+3. Extraction → OCR/vision → chunking → embeddings → course RAG.
+4. AI Tutor → migrate to Gemini API → course-aware RAG → sources → optional web search.
+5. Study calendar → session CRUD.
+6. Active Learning → scheduled questions via Gemini → adaptive evaluation.
+7. Full testing on Android/PC — fix responsiveness, security, errors, performance.
+
+**Final Flow**
+Create Course → Upload Materials → Process → Course RAG → Schedule Study → AI Tutor (Gemini) → Scheduled Questions → Answer → Feedback → Track Weak Areas → Adapt Future Questions.
+
+**Most Important Rule**
+Active Learning is part of the AI engine, not a separate Home-page feature — it stays invisible until a scheduled study session triggers an interactive question.
