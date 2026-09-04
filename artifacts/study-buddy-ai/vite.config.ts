@@ -19,9 +19,6 @@ export default defineConfig({
   base: basePath,
   plugins: [
     react(),
-    // Keep Tailwind's production optimization enabled. The previous
-    // optimize:false setting can leave a large CSS graph for Vite to process
-    // during the final chunk-rendering phase on Vercel.
     tailwindcss(),
     ...(isDevelopment ? [runtimeErrorOverlay()] : []),
     ...(isDevelopment && process.env.REPL_ID !== undefined
@@ -54,9 +51,35 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
     sourcemap: false,
-    // Keep the production bundle compatible with Vercel's current Node/V8
-    // runtime while avoiding unnecessary legacy transforms.
     target: 'es2022',
+    // Reduce Vercel build work during the expensive chunk-rendering phase.
+    reportCompressedSize: false,
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        // Keep large third-party dependency graphs out of the application chunk.
+        // This makes Vite/Rollup's final rendering phase much less memory-intensive.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'react-vendor';
+          }
+
+          if (id.includes('/@radix-ui/')) return 'radix-vendor';
+          if (id.includes('/recharts/') || id.includes('/d3-')) return 'charts-vendor';
+          if (id.includes('/framer-motion/')) return 'motion-vendor';
+          if (id.includes('/lucide-react/')) return 'icons-vendor';
+          if (id.includes('/@clerk/')) return 'clerk-vendor';
+
+          return 'vendor';
+        },
+      },
+    },
   },
   server: {
     port,
