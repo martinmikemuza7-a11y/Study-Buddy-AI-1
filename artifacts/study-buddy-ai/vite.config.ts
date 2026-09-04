@@ -14,15 +14,18 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH ?? '/';
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss({ optimize: false }),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== 'production' &&
-    process.env.REPL_ID !== undefined
+    // The Replit runtime error overlay is a development-only plugin.
+    // Loading it during a Vercel production build can interfere with
+    // Vite/Rolldown's production bundle and source-map processing.
+    ...(isDevelopment ? [runtimeErrorOverlay()] : []),
+    ...(isDevelopment && process.env.REPL_ID !== undefined
       ? [
           await import('@replit/vite-plugin-cartographer').then((m) =>
             m.cartographer({
@@ -51,6 +54,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
+    sourcemap: false,
   },
   server: {
     port,
