@@ -3,6 +3,10 @@
   "outputDirectory": "artifacts/study-buddy-ai/dist",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }
