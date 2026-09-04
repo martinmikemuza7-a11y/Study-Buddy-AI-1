@@ -6,7 +6,6 @@ import { defineConfig } from 'vite';
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
 const rawPort = process.env.PORT ?? '5173';
-
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
@@ -20,10 +19,10 @@ export default defineConfig({
   base: basePath,
   plugins: [
     react(),
-    tailwindcss({ optimize: false }),
-    // The Replit runtime error overlay is a development-only plugin.
-    // Loading it during a Vercel production build can interfere with
-    // Vite/Rolldown's production bundle and source-map processing.
+    // Keep Tailwind's production optimization enabled. The previous
+    // optimize:false setting can leave a large CSS graph for Vite to process
+    // during the final chunk-rendering phase on Vercel.
+    tailwindcss(),
     ...(isDevelopment ? [runtimeErrorOverlay()] : []),
     ...(isDevelopment && process.env.REPL_ID !== undefined
       ? [
@@ -55,6 +54,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
     sourcemap: false,
+    // Keep the production bundle compatible with Vercel's current Node/V8
+    // runtime while avoiding unnecessary legacy transforms.
+    target: 'es2022',
   },
   server: {
     port,
