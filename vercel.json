@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm --filter @workspace/study-buddy-ai build",
+  "outputDirectory": "artifacts/study-buddy-ai/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
