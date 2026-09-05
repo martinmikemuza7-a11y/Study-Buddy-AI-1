@@ -1,0 +1,10 @@
+{
+  "name": "Study Buddy AI — Online + Offline",
+  "short_name": "Study Buddy",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8faf9",
+  "theme_color": "#123f37",
+  "description": "Private course study with offline persistence and local AI when supported.",
+  "icons": []
+}
