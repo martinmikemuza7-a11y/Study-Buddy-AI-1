@@ -49,7 +49,10 @@ export async function writeSnapshot(userId: string, patch: Partial<LocalSnapshot
   const current = (await readSnapshot(userId)) ?? {
     courses: [], materials: {}, sessions: {}, progress: {}, knowledge: {}, chats: {}, updatedAt: new Date().toISOString(),
   };
-  const next: LocalSnapshot = { ...current, ...patch, updatedAt: new Date().toISOString() };
+  const serverCourses = Array.isArray(patch.courses) ? patch.courses : current.courses;
+  const pendingOfflineCourses = current.courses.filter((item) => typeof (item as { id?: unknown })?.id === 'number' && ((item as { id: number }).id < 0));
+  const mergedCourses = Array.from(new Map([...serverCourses, ...pendingOfflineCourses].map(item => [String((item as { id?: unknown })?.id ?? Math.random()), item])).values());
+  const next: LocalSnapshot = { ...current, ...patch, courses: mergedCourses, updatedAt: new Date().toISOString() };
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const request = db.transaction(STORE, 'readwrite').objectStore(STORE).put(next, userId);
