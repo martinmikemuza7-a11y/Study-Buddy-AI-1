@@ -1,0 +1,75 @@
+name: Build Study Buddy AI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, production/offline-cross-platform]
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+
+  desktop:
+    needs: web
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/study-buddy-ai build
+      - name: Build Windows installer
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri build
+
+  android:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/study-buddy-ai build
+      - name: Build Android APK
+        working-directory: apps/desktop/src-tauri
+        run: cargo tauri android build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: study-buddy-android
+          path: apps/desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+  windows-artifacts:
+    needs: desktop
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Windows installers are produced by the desktop job."
