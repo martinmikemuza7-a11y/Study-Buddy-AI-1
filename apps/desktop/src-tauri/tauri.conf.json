@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Study Buddy AI",
+  "version": "0.1.0",
+  "identifier": "com.studybuddy.ai",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @workspace/study-buddy-ai dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm --filter @workspace/study-buddy-ai build",
+    "frontendDist": "../../study-buddy-ai/dist"
+  },
+  "app": {
+    "windows": [{
+      "title": "Study Buddy AI",
+      "width": 1200,
+      "height": 800,
+      "minWidth": 900,
+      "minHeight": 650,
+      "resizable": true
+    }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": []
+  }
+}
