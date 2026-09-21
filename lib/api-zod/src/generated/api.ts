@@ -592,9 +592,9 @@ export const GetNextLearningQuestionResponse = zod.object({
   "difficulty": zod.enum(['beginner', 'developing', 'confident', 'advanced']),
   "due": zod.boolean(),
   "explanation": zod.string(),
-  "sourceFile": zod.string(),
-  "sourceExcerpt": zod.string(),
-  "sourceMaterialId": zod.int()
+  "sourceFile": zod.string().nullish(),
+  "sourceExcerpt": zod.string().nullish(),
+  "sourceMaterialId": zod.int().nullish()
 })
 
 
@@ -619,9 +619,9 @@ export const SubmitLearningAnswerResponse = zod.object({
   "feedback": zod.string(),
   "explanation": zod.string(),
   "correctAnswer": zod.string(),
-  "sourceFile": zod.string(),
-  "sourceExcerpt": zod.string(),
-  "sourceMaterialId": zod.int(),
+  "sourceFile": zod.string().nullish(),
+  "sourceExcerpt": zod.string().nullish(),
+  "sourceMaterialId": zod.int().nullish(),
   "nextDifficulty": zod.enum(['beginner', 'developing', 'confident', 'advanced']),
   "resultId": zod.int()
 })
