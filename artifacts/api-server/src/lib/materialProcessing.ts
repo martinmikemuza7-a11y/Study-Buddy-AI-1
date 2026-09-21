@@ -2,7 +2,6 @@ import { extname } from "node:path";
 import JSZip from "jszip";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
-import WordExtractor from "word-extractor";
 import { and, eq } from "drizzle-orm";
 import { db, materialChunksTable, materialsTable } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
@@ -99,9 +98,7 @@ async function extractTextSections(buffer: Buffer, contentType: string, name: st
   }
 
   if (extension === ".doc" || contentType === "application/msword") {
-    const extractor = new WordExtractor();
-    const document = await extractor.extract(buffer);
-    return chunkText(document.getBody(), {});
+    return chunkText(await extractBinaryDocumentWithGemini(buffer, "application/msword"), {});
   }
 
   if (contentType.startsWith("image/")) {
