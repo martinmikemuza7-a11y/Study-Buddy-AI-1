@@ -590,7 +590,11 @@ export const GetNextLearningQuestionResponse = zod.object({
   "prompt": zod.string(),
   "options": zod.array(zod.string()),
   "difficulty": zod.enum(['beginner', 'developing', 'confident', 'advanced']),
-  "due": zod.boolean()
+  "due": zod.boolean(),
+  "explanation": zod.string(),
+  "sourceFile": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceMaterialId": zod.int()
 })
 
 
@@ -614,6 +618,10 @@ export const SubmitLearningAnswerResponse = zod.object({
   "result": zod.enum(['correct', 'incorrect', 'skipped', 'dismissed', 'postponed']),
   "feedback": zod.string(),
   "explanation": zod.string(),
+  "correctAnswer": zod.string(),
+  "sourceFile": zod.string(),
+  "sourceExcerpt": zod.string(),
+  "sourceMaterialId": zod.int(),
   "nextDifficulty": zod.enum(['beginner', 'developing', 'confident', 'advanced']),
   "resultId": zod.int()
 })
