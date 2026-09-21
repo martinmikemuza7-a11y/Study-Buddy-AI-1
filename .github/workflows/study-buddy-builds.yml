@@ -1,0 +1,89 @@
+name: Study Buddy AI builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  web-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm test:study-pipeline
+      - run: pnpm run typecheck
+      - run: pnpm --filter @workspace/api-server run build
+      - run: pnpm --filter @workspace/study-buddy-ai run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: study-buddy-web-dist
+          path: artifacts/study-buddy-ai/dist
+
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: web-and-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @workspace/study-buddy-ai run build
+      - working-directory: artifacts/study-buddy-ai
+        run: pnpm exec cap add android
+      - working-directory: artifacts/study-buddy-ai
+        run: pnpm exec cap sync android
+      - working-directory: artifacts/study-buddy-ai/android
+        run: ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: study-buddy-ai-android-debug-apk
+          path: artifacts/study-buddy-ai/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: web-and-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - working-directory: artifacts/study-buddy-ai
+        run: pnpm run build:desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: study-buddy-ai-windows-installer
+          path: artifacts/study-buddy-ai/release/*.exe
+          if-no-files-found: error
