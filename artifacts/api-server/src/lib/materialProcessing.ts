@@ -56,7 +56,7 @@ async function extractPdfSections(buffer: Buffer): Promise<ExtractedSection[]> {
   const result = await pdfParse(buffer, {
     pagerender: async (pageData: any) => {
       const content = await pageData.getTextContent();
-      return content.items.map((item: any) => item.str ?? "").join(" ");
+      return content.items.map((item: any) => item.str ?? "").join(" ") + PAGE_BREAK;
     },
   });
   const raw = String(result.text ?? "");
@@ -127,7 +127,7 @@ export async function processMaterial(material: {
     const file = await storage.getObjectEntityFile(material.objectPath);
     const [buffer] = await file.download();
     const sections = await extractTextSections(buffer, material.contentType, material.name);
-    const chunks = sections.flatMap((section) => chunkText(section.content, section));
+    const chunks = sections;
 
     if (!chunks.length) throw new Error("No readable text was found in this file");
 
