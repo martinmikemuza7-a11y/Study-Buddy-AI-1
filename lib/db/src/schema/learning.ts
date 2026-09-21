@@ -23,6 +23,10 @@ export const learningQuestionsTable = pgTable("learning_questions", {
   options: jsonb("options").notNull().default([]),
   correctAnswer: text("correct_answer").notNull(),
   explanation: text("explanation").notNull(),
+  sourceMaterialId: integer("source_material_id"),
+  sourceFile: text("source_file"),
+  sourceExcerpt: text("source_excerpt"),
+  topic: text("topic"),
   difficulty: text("difficulty").notNull().default("beginner"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
