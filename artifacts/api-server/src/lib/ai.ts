@@ -231,6 +231,17 @@ export async function generateAnswerFeedback(
   };
 }
 
+export async function extractBinaryDocumentWithGemini(buffer: Buffer, contentType: string): Promise<string> {
+  if (buffer.byteLength > 15 * 1024 * 1024) throw new Error("This document is too large for safe fallback extraction");
+  const text = await generateGeminiText(
+    "Extract only readable text from this educational document. Do not return binary bytes, file headers, encoded data, summaries, or invented content.",
+    [{ inlineData: { mimeType: contentType, data: buffer.toString("base64") } }],
+  );
+  const normalized = normalizeStudyText(text);
+  if (hasUnreadableCharacters(normalized)) throw new Error("Fallback document extraction produced unreadable characters");
+  return normalized;
+}
+
 export async function extractImageText(buffer: Buffer, contentType: string): Promise<string> {
   if (buffer.byteLength > 10 * 1024 * 1024) {
     throw new Error("Images larger than 10 MB cannot be processed for text extraction");
