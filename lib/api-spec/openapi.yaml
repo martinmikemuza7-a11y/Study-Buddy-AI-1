@@ -824,11 +824,11 @@ components:
         correctAnswer:
           type: string
         sourceFile:
-          type: string
+          type: [string, "null"]
         sourceExcerpt:
-          type: string
+          type: [string, "null"]
         sourceMaterialId:
-          type: integer
+          type: [integer, "null"]
         nextDifficulty:
           type: string
           enum: [beginner, developing, confident, advanced]
