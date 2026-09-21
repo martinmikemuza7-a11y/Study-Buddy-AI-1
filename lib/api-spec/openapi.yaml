@@ -794,11 +794,11 @@ components:
         explanation:
           type: string
         sourceFile:
-          type: string
+          type: [string, "null"]
         sourceExcerpt:
-          type: string
+          type: [string, "null"]
         sourceMaterialId:
-          type: integer
+          type: [integer, "null"]
     LearningAnswer:
       type: object
       required: [questionId, answer, action]
