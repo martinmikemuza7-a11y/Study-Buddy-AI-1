@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm test:study-pipeline
       - run: pnpm run typecheck
       - run: pnpm --filter @workspace/api-server run build
