@@ -318,9 +318,9 @@ export interface LearningQuestion {
   difficulty: LearningQuestionDifficulty;
   due: boolean;
   explanation: string;
-  sourceFile: string;
-  sourceExcerpt: string;
-  sourceMaterialId: number;
+  sourceFile?: string | null;
+  sourceExcerpt?: string | null;
+  sourceMaterialId?: number | null;
 }
 
 export type LearningAnswerAction = typeof LearningAnswerAction[keyof typeof LearningAnswerAction];
