@@ -360,7 +360,17 @@ router.post("/courses/:courseId/learning/next", async (req, res): Promise<void> 
     const difficulty = progress.filter((item) => item.result === "correct").length > 4 ? "confident" : "beginner";
     const context = await retrieveCourseContext(req.userId!, course.id, "key concepts and important details");
     if (!context.length) { res.status(400).json({ error: "Add a ready course material before starting Active Learning." }); return; }
-    const generated = await generateLearningQuestion("key concepts and important details", course.activeLearningQuestionType, difficulty, context.map((item) => item.content).join("\n\n"));
+    let generated;
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        generated = await generateLearningQuestion("key concepts and important details", course.activeLearningQuestionType, difficulty, context);
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!generated) throw lastError instanceof Error ? lastError : new Error("Could not generate a grounded question");
     const [question] = await db.insert(learningQuestionsTable).values({
       ownerId: req.userId!,
       courseId: course.id,
@@ -370,6 +380,10 @@ router.post("/courses/:courseId/learning/next", async (req, res): Promise<void> 
       options: generated.options,
       correctAnswer: generated.correctAnswer,
       explanation: generated.explanation,
+      sourceMaterialId: generated.sourceMaterialId,
+      sourceFile: generated.sourceFile,
+      sourceExcerpt: generated.sourceExcerpt,
+      topic: generated.topic || null,
       difficulty,
     }).returning();
     res.json(GetNextLearningQuestionResponse.parse({
@@ -380,6 +394,10 @@ router.post("/courses/:courseId/learning/next", async (req, res): Promise<void> 
       options: question.options,
       difficulty: question.difficulty,
       due: true,
+      sourceFile: question.sourceFile,
+      sourceExcerpt: question.sourceExcerpt,
+      sourceMaterialId: question.sourceMaterialId,
+      explanation: question.explanation,
     }));
   } catch (error) {
     if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to enable Active Learning." }); return; }
@@ -420,7 +438,17 @@ router.post("/courses/:courseId/learning/answers", async (req, res): Promise<voi
     const progress = await db.select({ result: learningResultsTable.result }).from(learningResultsTable).where(and(eq(learningResultsTable.courseId, params.data.courseId), eq(learningResultsTable.ownerId, req.userId!)));
     const correctCount = progress.filter((item) => item.result === "correct").length;
     const nextDifficulty = correctCount >= 8 ? "advanced" : correctCount >= 4 ? "confident" : correctCount >= 1 ? "developing" : "beginner";
-    res.json(SubmitLearningAnswerResponse.parse({ result, feedback, explanation, nextDifficulty, resultId: saved.id }));
+    res.json(SubmitLearningAnswerResponse.parse({
+      result,
+      feedback,
+      explanation,
+      correctAnswer: question.correctAnswer,
+      sourceFile: question.sourceFile,
+      sourceExcerpt: question.sourceExcerpt,
+      sourceMaterialId: question.sourceMaterialId,
+      nextDifficulty,
+      resultId: saved.id,
+    }));
   } catch (error) {
     if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to evaluate answers." }); return; }
     req.log.error({ err: error }, "Active Learning evaluation failed");
