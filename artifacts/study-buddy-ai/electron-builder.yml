@@ -1,0 +1,14 @@
+appId: com.studybuddyai.desktop
+productName: Study Buddy AI
+directories:
+  output: release
+files:
+  - dist/**
+  - electron/**
+win:
+  target:
+    - nsis
+  artifactName: Study-Buddy-AI-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
