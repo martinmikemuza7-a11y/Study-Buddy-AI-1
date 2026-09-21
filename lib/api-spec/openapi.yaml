@@ -771,7 +771,7 @@ components:
           type: integer
     LearningQuestion:
       type: object
-      required: [id, courseId, type, prompt, options, difficulty, due]
+      required: [id, courseId, type, prompt, options, difficulty, due, sourceFile, sourceExcerpt, sourceMaterialId, explanation]
       properties:
         id:
           type: integer
@@ -791,6 +791,14 @@ components:
           enum: [beginner, developing, confident, advanced]
         due:
           type: boolean
+        explanation:
+          type: string
+        sourceFile:
+          type: [string, "null"]
+        sourceExcerpt:
+          type: [string, "null"]
+        sourceMaterialId:
+          type: [integer, "null"]
     LearningAnswer:
       type: object
       required: [questionId, answer, action]
@@ -804,7 +812,7 @@ components:
           enum: [answered, skipped, dismissed, postponed]
     LearningFeedback:
       type: object
-      required: [result, feedback, explanation, nextDifficulty, resultId]
+      required: [result, feedback, explanation, correctAnswer, sourceFile, sourceExcerpt, sourceMaterialId, nextDifficulty, resultId]
       properties:
         result:
           type: string
@@ -813,6 +821,14 @@ components:
           type: string
         explanation:
           type: string
+        correctAnswer:
+          type: string
+        sourceFile:
+          type: [string, "null"]
+        sourceExcerpt:
+          type: [string, "null"]
+        sourceMaterialId:
+          type: [integer, "null"]
         nextDifficulty:
           type: string
           enum: [beginner, developing, confident, advanced]
