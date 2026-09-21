@@ -6,7 +6,7 @@ import WordExtractor from "word-extractor";
 import { and, eq } from "drizzle-orm";
 import { db, materialChunksTable, materialsTable } from "@workspace/db";
 import { ObjectStorageService } from "./objectStorage";
-import { extractImageText, extractPdfWithGemini } from "./ai";
+import { extractBinaryDocumentWithGemini, extractImageText, extractPdfWithGemini } from "./ai";
 import { hasUnreadableCharacters, normalizeStudyText } from "./textQuality";
 
 const storage = new ObjectStorageService();
@@ -90,7 +90,7 @@ async function extractTextSections(buffer: Buffer, contentType: string, name: st
   }
 
   if (extension === ".ppt") {
-    throw new Error("Legacy .ppt files are not safely readable by the current server parser. Save the file as .pptx and upload it again.");
+    return [{ content: await extractBinaryDocumentWithGemini(buffer, "application/vnd.ms-powerpoint"), page: null, slide: null }];
   }
 
   if (extension === ".docx" || contentType.includes("wordprocessingml.document")) {
