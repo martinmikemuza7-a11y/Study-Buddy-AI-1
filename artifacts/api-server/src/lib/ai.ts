@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { hasUnreadableCharacters, lexicalOverlap, normalizeStudyText } from "./textQuality";
 import { db, materialChunksTable, materialsTable } from "@workspace/db";
 
 export class AIUnavailableError extends Error {
@@ -122,6 +123,7 @@ export async function retrieveCourseContext(ownerId: string, courseId: number, p
   const chunks = await db.select({
     id: materialChunksTable.id,
     materialId: materialChunksTable.materialId,
+    courseId: materialChunksTable.courseId,
     content: materialChunksTable.content,
     page: materialChunksTable.page,
     slide: materialChunksTable.slide,
@@ -131,17 +133,20 @@ export async function retrieveCourseContext(ownerId: string, courseId: number, p
     .where(and(
       eq(materialChunksTable.ownerId, ownerId),
       eq(materialChunksTable.courseId, courseId),
+      eq(materialsTable.ownerId, ownerId),
+      eq(materialsTable.courseId, courseId),
       eq(materialsTable.status, "ready"),
     ));
-
-  const terms = prompt.toLowerCase().split(/\W+/).filter((term) => term.length > 2);
+  const terms = normalizeStudyText(prompt).toLowerCase().split(/\W+/).filter((term) => term.length > 2);
   return chunks
     .map((chunk) => ({
       ...chunk,
+      content: normalizeStudyText(chunk.content),
       score: terms.reduce((score, term) => score + (chunk.content.toLowerCase().includes(term) ? 1 : 0), 0),
     }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 6);
+    .filter((chunk) => !hasUnreadableCharacters(chunk.content))
+    .sort((a, b) => b.score - a.score || a.id - b.id)
+    .slice(0, 8);
 }
 
 export async function generateTutorAnswer(prompt: string, context: Array<{ name: string; content: string }>, mode?: string) {
@@ -158,26 +163,51 @@ export async function generateLearningQuestion(
   prompt: string,
   questionType: string,
   difficulty: string,
-  context: string,
+  context: Array<{ id: number; materialId: number; name: string; content: string; page: number | null; slide: number | null }>,
 ) {
+  if (!context.length) throw new Error("No course material is available for question generation");
+  const contextText = context.map((item) => [
+    "CHUNK_ID: " + item.id,
+    "SOURCE_FILE: " + item.name,
+    "PAGE: " + (item.page ?? ""),
+    "SLIDE: " + (item.slide ?? ""),
+    "CONTENT:\n" + normalizeStudyText(item.content),
+  ].join("\n")).join("\n\n---\n\n");
   const content = await generateGeminiText(
-    "Create one study question from the supplied course material. Return JSON with prompt, options (array of strings), correctAnswer, explanation, and topic. Do not use knowledge outside the material. For short_answer, options must be an empty array.",
-    [{ text: `Type: ${questionType}; difficulty: ${difficulty}; focus: ${prompt}\n\nMaterial:\n${context}` }],
+    "Generate exactly one study question using ONLY the supplied course material. Never use filenames, binary data, hidden metadata, prior knowledge, or web knowledge as facts. Return JSON with prompt, options, correctAnswer, explanation, topic, sourceFile, and sourceExcerpt. sourceExcerpt MUST be an exact readable excerpt copied from one supplied CONTENT block. For true_false, options must be [\"True\",\"False\"] and correctAnswer must be exactly \"True\" or \"False\". For short_answer, options must be []. The explanation must be supported by sourceExcerpt. Never output replacement characters.",
+    [{ text: "Question focus: " + prompt + "\nQuestion type: " + questionType + "\nDifficulty: " + difficulty + "\n\nSUPPLIED COURSE MATERIAL:\n" + contextText }],
     "application/json",
   );
-  const question = parseJson<{
-    prompt: string;
-    options: string[];
-    correctAnswer: string;
-    explanation: string;
-    topic?: string;
-  }>(content);
-  if (!question.prompt || !Array.isArray(question.options) || !question.correctAnswer || !question.explanation) {
-    throw new Error("Gemini returned an incomplete question");
+  const question = parseJson<{ prompt: string; options: string[]; correctAnswer: string; explanation: string; topic?: string; sourceFile: string; sourceExcerpt: string }>(content);
+  const clean = {
+    prompt: normalizeStudyText(question.prompt ?? ""),
+    options: Array.isArray(question.options) ? question.options.map(normalizeStudyText) : [],
+    correctAnswer: normalizeStudyText(question.correctAnswer ?? ""),
+    explanation: normalizeStudyText(question.explanation ?? ""),
+    topic: normalizeStudyText(question.topic ?? ""),
+    sourceFile: normalizeStudyText(question.sourceFile ?? ""),
+    sourceExcerpt: normalizeStudyText(question.sourceExcerpt ?? ""),
+  };
+  if (!clean.prompt || !clean.correctAnswer || !clean.explanation || !clean.sourceFile || !clean.sourceExcerpt || hasUnreadableCharacters(JSON.stringify(clean))) {
+    throw new Error("Gemini generated unreadable or incomplete question data");
   }
-  return question;
+  const source = context.find((item) => item.name === clean.sourceFile && normalizeStudyText(item.content).includes(clean.sourceExcerpt));
+  if (!source) throw new Error("Gemini cited an excerpt that is not present in the selected course material");
+  if (questionType === "multiple_choice" && (clean.options.length < 3 || clean.options.length > 5 || !clean.options.includes(clean.correctAnswer))) {
+    throw new Error("Gemini returned invalid multiple-choice options");
+  }
+  if (questionType === "true_false" && (clean.options.length !== 2 || !["True", "False"].includes(clean.correctAnswer))) {
+    throw new Error("Gemini returned invalid true/false data");
+  }
+  if (questionType === "short_answer" && clean.options.length !== 0) throw new Error("Gemini returned options for a short-answer question");
+  if (questionType === "short_answer" && lexicalOverlap(clean.correctAnswer, clean.sourceExcerpt) < 0.2) {
+    throw new Error("Generated short-answer key is not sufficiently supported by the cited source excerpt");
+  }
+  if (lexicalOverlap(clean.explanation, clean.sourceExcerpt) < 0.15) {
+    throw new Error("Generated explanation is not sufficiently grounded in the cited source excerpt");
+  }
+  return { ...clean, sourceMaterialId: source.materialId };
 }
-
 export async function generateAnswerFeedback(
   question: string,
   answer: string,
@@ -185,15 +215,20 @@ export async function generateAnswerFeedback(
   explanation: string,
 ) {
   const content = await generateGeminiText(
-    "Evaluate a student's answer. Return only JSON with result (correct or incorrect), feedback, and explanation. Be concise, supportive, and do not reveal hidden reasoning.",
+    "Evaluate the student's answer against the supplied verified answer. Return JSON with result (correct or incorrect), feedback, explanation, and correctAnswer. For short answers judge conceptual meaning, not exact wording. Do not expose hidden reasoning.",
     [{ text: `Question: ${question}\nStudent answer: ${answer}\nExpected answer: ${correctAnswer}\nReference explanation: ${explanation}` }],
     "application/json",
   );
-  const feedback = parseJson<{ result: "correct" | "incorrect"; feedback: string; explanation: string }>(content);
+  const feedback = parseJson<{ result: "correct" | "incorrect"; feedback: string; explanation: string; correctAnswer?: string }>(content);
   if (!["correct", "incorrect"].includes(feedback.result) || !feedback.feedback || !feedback.explanation) {
     throw new Error("Gemini returned incomplete answer feedback");
   }
-  return feedback;
+  return {
+    ...feedback,
+    correctAnswer: normalizeStudyText(feedback.correctAnswer || correctAnswer) || correctAnswer,
+    feedback: normalizeStudyText(feedback.feedback),
+    explanation: normalizeStudyText(feedback.explanation),
+  };
 }
 
 export async function extractImageText(buffer: Buffer, contentType: string): Promise<string> {
