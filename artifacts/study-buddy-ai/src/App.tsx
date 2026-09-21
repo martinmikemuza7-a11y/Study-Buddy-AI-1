@@ -351,14 +351,14 @@ function SettingsPanel({ course }: { course: Course }) {
 function QuestionCard({ courseId, sessionId, question, onDone }: { courseId: number; sessionId: number; question: LearningQuestion; onDone: () => void }) {
   const [answer, setAnswer] = useState('');
   const submit = useSubmitLearningAnswer();
-  const [feedback, setFeedback] = useState<{ feedback: string; explanation: string; result: string; correctAnswer: string; sourceFile: string; sourceExcerpt: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ feedback: string; explanation: string; result: string; correctAnswer: string; sourceFile?: string | null; sourceExcerpt?: string | null } | null>(null);
   const send = (action: 'answered' | 'skipped') => submit.mutate({ courseId, data: { questionId: question.id, answer, action } }, { onSuccess: (result) => setFeedback(result) });
   return <section className="card panel" data-testid="card-learning-question"><div className="panel-title"><div><span className="eyebrow">Session question</span><h2>Take a second look</h2></div><span className="tag">{question.difficulty}</span></div><p style={{ fontSize: 16, lineHeight: 1.5 }} data-testid="text-learning-question">{question.prompt}</p>{question.type === 'short_answer' ? <textarea value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Write what you think…" data-testid="input-learning-answer" /> : <div className="form-stack" style={{ marginTop: 13 }}>{question.options.map((option, index) => <button key={option} className={`btn ${answer === option ? 'btn-primary' : 'btn-soft'}`} onClick={() => setAnswer(option)} data-testid={`button-learning-option-${index}`}>{option}</button>)}</div>}{feedback ? <div className="notice" style={{ marginTop: 15 }} data-testid="feedback-learning-answer">
   <strong>{feedback.result === 'correct' ? 'Correct.' : 'Incorrect.'}</strong>
   <div>{feedback.feedback}</div>
   <div style={{ marginTop: 10 }}><strong>Correct answer:</strong> {feedback.correctAnswer}</div>
   <div style={{ marginTop: 5 }}><strong>Why:</strong> {feedback.explanation}</div>
-  <div style={{ marginTop: 8 }} className="small-copy"><strong>Source:</strong> {feedback.sourceFile}</div>
+  {feedback.sourceFile && <div style={{ marginTop: 8 }} className="small-copy"><strong>Source:</strong> {feedback.sourceFile}</div>}
   {feedback.sourceExcerpt && <div style={{ marginTop: 4 }} className="small-copy">“{feedback.sourceExcerpt}”</div>}
   <button className="btn btn-ghost" onClick={onDone} data-testid="button-dismiss-feedback">Continue</button>
 </div> : <div className="form-actions" style={{ marginTop: 18 }}><button className="btn btn-ghost" onClick={() => send('skipped')} data-testid="button-skip-question">Skip for now</button><button className="btn btn-primary" onClick={() => send('answered')} disabled={!answer || submit.isPending} data-testid="button-submit-learning-answer">{submit.isPending ? <Loader2 size={15} /> : <Check size={15} />} Check answer</button></div>}{submit.isError && <div className="error-box" style={{ marginTop: 12 }} data-testid="error-learning-answer">That answer could not be checked. Try once more.</div>}</section>;
