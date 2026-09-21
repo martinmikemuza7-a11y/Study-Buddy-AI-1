@@ -317,6 +317,10 @@ export interface LearningQuestion {
   options: string[];
   difficulty: LearningQuestionDifficulty;
   due: boolean;
+  explanation: string;
+  sourceFile: string;
+  sourceExcerpt: string;
+  sourceMaterialId: number;
 }
 
 export type LearningAnswerAction = typeof LearningAnswerAction[keyof typeof LearningAnswerAction];
@@ -360,6 +364,10 @@ export interface LearningFeedback {
   result: LearningFeedbackResult;
   feedback: string;
   explanation: string;
+  correctAnswer: string;
+  sourceFile: string;
+  sourceExcerpt: string;
+  sourceMaterialId: number;
   nextDifficulty: LearningFeedbackNextDifficulty;
   resultId: number;
 }
