@@ -21,6 +21,8 @@ import {
 } from '@workspace/api-client-react';
 import type { Course, LearningQuestion, Material, StudySession, TutorAnswer } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -543,6 +545,17 @@ function Router() {
   </Switch></ErrorBoundary>;
 }
 
+function ApiAuthBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(getToken);
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
@@ -572,7 +585,7 @@ function ClerkProviderWithRoutes() {
     localization={{ signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to access your study space' } }, signUp: { start: { title: 'Create your study space', subtitle: 'Bring your learning together' } } }}
   >
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider><ClerkQueryClientCacheInvalidator /><Router /><Toaster /></TooltipProvider>
+      <TooltipProvider><ApiAuthBridge /><ClerkQueryClientCacheInvalidator /><Router /><Toaster /><PwaInstallPrompt /></TooltipProvider>
     </QueryClientProvider>
   </ClerkProvider>;
 }
