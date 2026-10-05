@@ -1,0 +1,3 @@
+name = "study-buddy-ai"
+pages_build_output_dir = "./artifacts/study-buddy-ai/dist"
+compatibility_date = "2026-10-05"
