@@ -254,3 +254,70 @@ export async function extractImageText(buffer: Buffer, contentType: string): Pro
     ],
   );
 }
+
+export type ExtractedPastPaperQuestion = {
+  questionNumber: string | null;
+  prompt: string;
+  options: string[];
+  questionType: "multiple_choice" | "true_false" | "short_answer" | "essay" | "programming";
+  marks: number | null;
+  sourceExcerpt: string;
+};
+
+/**
+ * Extracts original questions from already-extracted paper text. The sourceExcerpt
+ * is checked against the supplied text so the model cannot quietly invent a paper question.
+ */
+export async function extractPastPaperQuestions(paperText: string): Promise<ExtractedPastPaperQuestion[]> {
+  const source = normalizeStudyText(paperText).slice(0, 36000);
+  if (source.length < 40) throw new Error("The selected paper does not contain enough readable text to extract questions.");
+  const content = await generateGeminiText(
+    "You are an exam-paper question extractor, not a question writer. Extract only questions that are visibly present in the supplied paper text. Do not create, complete, paraphrase, or infer missing questions. Preserve original wording, numbering, subparts, answer options and marks. Ignore instructions, headers, answer keys, and examples unless they are explicitly question items. Return JSON object {questions:[{questionNumber,prompt,options,questionType,marks,sourceExcerpt}]}. questionNumber is a string or null; options is an array; questionType must be multiple_choice, true_false, short_answer, essay, or programming; marks is a number or null. sourceExcerpt must be a verbatim continuous excerpt from the supplied text containing the full question and its options when present. If no actual questions are found, return {questions:[]}.",
+    [{ text: "PAPER TEXT (the only source of truth):\n" + source }],
+    "application/json",
+  );
+  const parsed = parseJson<{ questions?: Array<Record<string, unknown>> }>(content);
+  if (!Array.isArray(parsed.questions)) throw new Error("Question extraction returned an invalid result.");
+  const verified: ExtractedPastPaperQuestion[] = [];
+  const normalizedSource = normalizeStudyText(source);
+  for (const raw of parsed.questions.slice(0, 150)) {
+    const prompt = normalizeStudyText(typeof raw.prompt === "string" ? raw.prompt : "");
+    const sourceExcerpt = normalizeStudyText(typeof raw.sourceExcerpt === "string" ? raw.sourceExcerpt : "");
+    const questionNumber = typeof raw.questionNumber === "string" ? normalizeStudyText(raw.questionNumber) : null;
+    const options = Array.isArray(raw.options) ? raw.options.filter((v): v is string => typeof v === "string").map(normalizeStudyText) : [];
+    const validTypes = ["multiple_choice", "true_false", "short_answer", "essay", "programming"];
+    const questionType = validTypes.includes(String(raw.questionType)) ? String(raw.questionType) as ExtractedPastPaperQuestion["questionType"] : "short_answer";
+    const marks = typeof raw.marks === "number" && Number.isFinite(raw.marks) && raw.marks >= 0 ? Math.round(raw.marks) : null;
+    if (!prompt || !sourceExcerpt || hasUnreadableCharacters(prompt + sourceExcerpt)) continue;
+    if (!normalizedSource.includes(sourceExcerpt)) continue;
+    if (lexicalOverlap(prompt, sourceExcerpt) < 0.75) continue;
+    if (verified.some((q) => normalizeStudyText(q.prompt).toLowerCase() === prompt.toLowerCase())) continue;
+    verified.push({ questionNumber, prompt, options, questionType, marks, sourceExcerpt });
+  }
+  return verified;
+}
+
+export async function generatePastPaperAnswer(
+  question: string,
+  context: Array<{ name: string; content: string }>,
+): Promise<{ answer: string; explanation: string; sourceFiles: string[] }> {
+  const contextText = context.length
+    ? context.map((item) => "SOURCE FILE: " + item.name + "\nCONTENT:\n" + normalizeStudyText(item.content)).join("\n\n---\n\n").slice(0, 26000)
+    : "No separate study notes were available for this question.";
+  const content = await generateGeminiText(
+    "You answer an extracted past-paper question. Keep the question exactly as supplied; do not rewrite it. Use uploaded study notes as the primary source and do not claim notes support facts they do not contain. If notes are insufficient, say so clearly in the explanation and provide a cautious general-knowledge answer only if useful. Return JSON {answer,explanation,sourceFiles}. sourceFiles must list only source filenames supplied below. Do not invent citations, page numbers, or file names.",
+    [{ text: "PAST-PAPER QUESTION:\n" + question + "\n\nAVAILABLE STUDY NOTES:\n" + contextText }],
+    "application/json",
+  );
+  const parsed = parseJson<{ answer?: string; explanation?: string; sourceFiles?: unknown }>(content);
+  const answer = normalizeStudyText(typeof parsed.answer === "string" ? parsed.answer : "");
+  const explanation = normalizeStudyText(typeof parsed.explanation === "string" ? parsed.explanation : "");
+  const availableNames = new Set(context.map((item) => item.name));
+  const sourceFiles = Array.isArray(parsed.sourceFiles)
+    ? parsed.sourceFiles.filter((name): name is string => typeof name === "string" && availableNames.has(name))
+    : [];
+  if (!answer || !explanation || hasUnreadableCharacters(answer + explanation)) {
+    throw new Error("The AI returned an incomplete or unreadable answer.");
+  }
+  return { answer, explanation, sourceFiles };
+}
