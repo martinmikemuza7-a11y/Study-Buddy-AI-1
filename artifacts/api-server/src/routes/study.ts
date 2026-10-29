@@ -47,7 +47,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { defaultActiveLearning, findOwnedCourse, getCourseView, listOwnedSessions, sessionView } from "../lib/courseData";
-import { AIUnavailableError, generateAnswerFeedback, generateLearningQuestion, generateTutorAnswer, retrieveCourseContext, searchWeb } from "../lib/ai";
+import { AIUnavailableError, extractPastPaperQuestions, generateAnswerFeedback, generateLearningQuestion, generatePastPaperAnswer, generateTutorAnswer, retrieveCourseContext, searchWeb } from "../lib/ai";
 import { processMaterial } from "../lib/materialProcessing";
 
 const router: IRouter = Router();
@@ -310,6 +310,138 @@ router.post("/courses/:courseId/tutor", async (req, res): Promise<void> => {
     if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to enable tutoring." }); return; }
     req.log.error({ err: error }, "Tutor generation failed");
     res.status(500).json({ error: "Tutor could not respond right now" });
+  }
+});
+
+// Past-paper mode is explicit: the user chooses which uploaded material is an exam paper.
+router.post("/courses/:courseId/materials/:materialId/past-paper/extract", async (req, res): Promise<void> => {
+  const courseId = Number(req.params.courseId);
+  const materialId = Number(req.params.materialId);
+  if (!Number.isInteger(courseId) || courseId < 1 || !Number.isInteger(materialId) || materialId < 1) {
+    res.status(400).json({ error: "Invalid course or material ID." }); return;
+  }
+  if (!(await findOwnedCourse(req.userId!, courseId))) { res.status(404).json({ error: "Course not found." }); return; }
+  const [material] = await db.select().from(materialsTable).where(and(
+    eq(materialsTable.id, materialId),
+    eq(materialsTable.courseId, courseId),
+    eq(materialsTable.ownerId, req.userId!),
+    eq(materialsTable.status, "ready"),
+  ));
+  if (!material) { res.status(404).json({ error: "Ready material not found. Wait for processing to finish." }); return; }
+  try {
+    const chunks = await db.select({ content: materialChunksTable.content, chunkIndex: materialChunksTable.chunkIndex })
+      .from(materialChunksTable).where(and(
+        eq(materialChunksTable.materialId, materialId),
+        eq(materialChunksTable.courseId, courseId),
+        eq(materialChunksTable.ownerId, req.userId!),
+      )).orderBy(asc(materialChunksTable.chunkIndex));
+    const paperText = chunks.map((chunk) => chunk.content).join("\n\n");
+    const extracted = await extractPastPaperQuestions(paperText);
+    if (!extracted.length) {
+      res.status(422).json({ error: "No verifiable questions were found in this paper. Check that its text is readable or try a clearer PDF scan." }); return;
+    }
+    await db.delete(pastPaperQuestionsTable).where(and(
+      eq(pastPaperQuestionsTable.ownerId, req.userId!),
+      eq(pastPaperQuestionsTable.courseId, courseId),
+      eq(pastPaperQuestionsTable.sourceMaterialId, materialId),
+    ));
+    const saved = await db.insert(pastPaperQuestionsTable).values(extracted.map((question) => ({
+      ownerId: req.userId!,
+      courseId,
+      sourceMaterialId: materialId,
+      questionNumber: question.questionNumber,
+      prompt: question.prompt,
+      options: question.options,
+      questionType: question.questionType,
+      marks: question.marks,
+      sourceExcerpt: question.sourceExcerpt,
+      correctAnswer: null,
+      explanation: null,
+    }))).returning();
+    res.status(201).json({
+      sourceMaterialId: materialId,
+      sourceFile: material.name,
+      count: saved.length,
+      questions: saved.map((question) => ({
+        id: question.id,
+        questionNumber: question.questionNumber,
+        prompt: question.prompt,
+        options: question.options,
+        questionType: question.questionType,
+        marks: question.marks,
+        sourceFile: material.name,
+        answerReady: false,
+      })),
+    });
+  } catch (error) {
+    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to extract past-paper questions." }); return; }
+    req.log.error({ err: error }, "Past-paper question extraction failed");
+    res.status(500).json({ error: "Past-paper questions could not be extracted. The original paper has not been changed." });
+  }
+});
+
+router.get("/courses/:courseId/materials/:materialId/past-paper/questions", async (req, res): Promise<void> => {
+  const courseId = Number(req.params.courseId);
+  const materialId = Number(req.params.materialId);
+  if (!Number.isInteger(courseId) || courseId < 1 || !Number.isInteger(materialId) || materialId < 1) {
+    res.status(400).json({ error: "Invalid course or material ID." }); return;
+  }
+  const [material] = await db.select({ id: materialsTable.id, name: materialsTable.name }).from(materialsTable).where(and(
+    eq(materialsTable.id, materialId), eq(materialsTable.courseId, courseId), eq(materialsTable.ownerId, req.userId!),
+  ));
+  if (!material) { res.status(404).json({ error: "Material not found." }); return; }
+  const questions = await db.select().from(pastPaperQuestionsTable).where(and(
+    eq(pastPaperQuestionsTable.ownerId, req.userId!),
+    eq(pastPaperQuestionsTable.courseId, courseId),
+    eq(pastPaperQuestionsTable.sourceMaterialId, materialId),
+  )).orderBy(asc(pastPaperQuestionsTable.id));
+  res.json({
+    sourceMaterialId: materialId,
+    sourceFile: material.name,
+    count: questions.length,
+    questions: questions.map((question) => ({
+      id: question.id, questionNumber: question.questionNumber, prompt: question.prompt,
+      options: question.options, questionType: question.questionType, marks: question.marks,
+      sourceFile: material.name, answerReady: Boolean(question.correctAnswer),
+      answer: question.correctAnswer, explanation: question.explanation,
+    })),
+  });
+});
+
+router.post("/courses/:courseId/materials/:materialId/past-paper/questions/:questionId/answer", async (req, res): Promise<void> => {
+  const courseId = Number(req.params.courseId);
+  const materialId = Number(req.params.materialId);
+  const questionId = Number(req.params.questionId);
+  if (![courseId, materialId, questionId].every((value) => Number.isInteger(value) && value > 0)) {
+    res.status(400).json({ error: "Invalid course, material, or question ID." }); return;
+  }
+  const [question] = await db.select().from(pastPaperQuestionsTable).where(and(
+    eq(pastPaperQuestionsTable.id, questionId),
+    eq(pastPaperQuestionsTable.courseId, courseId),
+    eq(pastPaperQuestionsTable.sourceMaterialId, materialId),
+    eq(pastPaperQuestionsTable.ownerId, req.userId!),
+  ));
+  if (!question) { res.status(404).json({ error: "Past-paper question not found." }); return; }
+  if (question.correctAnswer && question.explanation) {
+    res.json({ id: question.id, answer: question.correctAnswer, explanation: question.explanation, sourceFiles: [] }); return;
+  }
+  try {
+    const context = (await retrieveCourseContext(req.userId!, courseId, question.prompt))
+      .filter((item) => item.materialId !== materialId)
+      .map((item) => ({ name: item.name, content: item.content }));
+    const generated = await generatePastPaperAnswer(question.prompt, context);
+    const [saved] = await db.update(pastPaperQuestionsTable).set({
+      correctAnswer: generated.answer,
+      explanation: generated.explanation,
+    }).where(and(
+      eq(pastPaperQuestionsTable.id, questionId),
+      eq(pastPaperQuestionsTable.ownerId, req.userId!),
+    )).returning();
+    res.json({ id: saved.id, answer: saved.correctAnswer, explanation: saved.explanation, sourceFiles: generated.sourceFiles });
+  } catch (error) {
+    if (error instanceof AIUnavailableError) { res.status(503).json({ error: "AI is not configured. Add a Gemini API key to generate answers." }); return; }
+    req.log.error({ err: error }, "Past-paper answer generation failed");
+    res.status(500).json({ error: "An answer could not be generated right now." });
   }
 });
 
