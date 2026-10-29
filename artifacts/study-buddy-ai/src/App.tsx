@@ -333,9 +333,89 @@ function Courses() {
   );
 }
 
-function MaterialRow({ material, onDelete }: { material: Material; onDelete: () => void }) {
+type PastPaperQuestionView = {
+  id: number;
+  questionNumber: string | null;
+  prompt: string;
+  options: string[];
+  questionType: string;
+  marks: number | null;
+  sourceFile: string;
+  answerReady: boolean;
+  answer?: string | null;
+  explanation?: string | null;
+};
+
+function MaterialRow({ material, courseId, onDelete }: { material: Material; courseId: number; onDelete: () => void }) {
   const statusLabel = material.status === 'processing' ? 'processing' : material.status;
-  return <div className="material-row" data-testid={`row-material-${material.id}`}><div className="file-icon"><FileText size={17} /></div><div className="material-copy"><strong data-testid={`text-material-name-${material.id}`}>{material.name}</strong><span>{material.pageCount ? `${material.pageCount} pages · ` : ''}{Math.max(1, Math.round(material.sizeBytes / 1024))} KB</span></div><span className={`tag ${material.status === 'ready' ? 'ready' : material.status === 'failed' ? 'failed' : ''}`} data-testid={`status-material-${material.id}`}>{statusLabel}</span><button className="icon-btn" onClick={onDelete} aria-label={`Delete ${material.name}`} data-testid={`button-delete-material-${material.id}`}><Trash2 size={14} /></button></div>;
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [questions, setQuestions] = useState<PastPaperQuestionView[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeAnswer, setActiveAnswer] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const loadQuestions = async () => {
+    const response = await fetch(`/api/courses/${courseId}/materials/${material.id}/past-paper/questions`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not load extracted questions.');
+    setQuestions(data.questions ?? []);
+  };
+  const openPastPaper = async () => {
+    setPanelOpen((open) => !open);
+    if (panelOpen) return;
+    setLoading(true); setError(''); setNotice('');
+    try { await loadQuestions(); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not load past-paper questions.'); }
+    finally { setLoading(false); }
+  };
+  const extractQuestions = async () => {
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const response = await fetch(`/api/courses/${courseId}/materials/${material.id}/past-paper/extract`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not extract questions.');
+      setQuestions(data.questions ?? []);
+      setNotice(`Extracted ${data.count} verified question(s) from this paper.`);
+      setPanelOpen(true);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not extract questions.'); }
+    finally { setLoading(false); }
+  };
+  const generateAnswer = async (questionId: number) => {
+    setActiveAnswer(questionId); setError('');
+    try {
+      const response = await fetch(`/api/courses/${courseId}/materials/${material.id}/past-paper/questions/${questionId}/answer`, { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not generate an answer.');
+      setQuestions((current) => current.map((question) => question.id === questionId
+        ? { ...question, answerReady: true, answer: data.answer, explanation: data.explanation }
+        : question));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not generate an answer.'); }
+    finally { setActiveAnswer(null); }
+  };
+
+  return <div className="material-item" data-testid={`row-material-${material.id}`}>
+    <div className="material-row"><div className="file-icon"><FileText size={17} /></div><div className="material-copy"><strong data-testid={`text-material-name-${material.id}`}>{material.name}</strong><span>{material.pageCount ? `${material.pageCount} pages · ` : ''}{Math.max(1, Math.round(material.sizeBytes / 1024))} KB</span></div><span className={`tag ${material.status === 'ready' ? 'ready' : material.status === 'failed' ? 'failed' : ''}`} data-testid={`status-material-${material.id}`}>{statusLabel}</span><button className="icon-btn" onClick={onDelete} aria-label={`Delete ${material.name}`} data-testid={`button-delete-material-${material.id}`}><Trash2 size={14} /></button></div>
+    {material.status === 'ready' && <div style={{ margin: '0 0 10px 42px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <button className="btn btn-soft" onClick={openPastPaper} data-testid={`button-open-past-paper-${material.id}`}>{panelOpen ? 'Hide past-paper questions' : 'Past-paper mode'}</button>
+      <button className="btn btn-primary" onClick={extractQuestions} disabled={loading} data-testid={`button-extract-past-paper-${material.id}`}>{loading ? <Loader2 size={14} /> : <FileText size={14} />} Extract original questions</button>
+    </div>}
+    {panelOpen && <section className="card panel" style={{ margin: '0 0 14px 42px', padding: 14 }} aria-label={`Past-paper questions from ${material.name}`}>
+      <div className="panel-title"><div><span className="eyebrow">Original paper questions</span><h3 style={{ margin: 0 }}>{questions.length} question(s)</h3></div></div>
+      <p className="small-copy">Questions are extracted from this file. Answers are generated separately from your other uploaded study materials.</p>
+      {notice && <div className="notice" style={{ marginBottom: 10 }}>{notice}</div>}
+      {error && <div className="error-box" style={{ marginBottom: 10 }}>{error}</div>}
+      {loading && <div className="small-copy">Reading the paper…</div>}
+      {!loading && questions.length === 0 && !error && <p className="small-copy">No extracted questions are saved yet. Choose “Extract original questions”.</p>}
+      {questions.map((question) => <article key={question.id} style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 12, marginTop: 12 }}>
+        <div className="small-copy">{question.questionNumber ? `Question ${question.questionNumber}` : 'Past-paper question'}{question.marks !== null ? ` · ${question.marks} mark(s)` : ''}</div>
+        <p style={{ lineHeight: 1.5, margin: '6px 0' }}>{question.prompt}</p>
+        {question.options?.length > 0 && <ol style={{ paddingLeft: 22 }}>{question.options.map((option, index) => <li key={index}>{option}</li>)}</ol>}
+        {question.answerReady ? <div className="notice"><strong>Answer</strong><p>{question.answer}</p><strong>Explanation</strong><p>{question.explanation}</p></div>
+          : <button className="btn btn-soft" onClick={() => generateAnswer(question.id)} disabled={activeAnswer !== null} data-testid={`button-generate-past-answer-${question.id}`}>{activeAnswer === question.id ? <Loader2 size={14} /> : <Sparkles size={14} />} Generate answer separately</button>}
+      </article>)}
+    </section>}
+  </div>;
 }
 
 function SettingsPanel({ course }: { course: Course }) {
@@ -409,7 +489,7 @@ function CoursePage() {
       </section>
       <div className="workspace-grid">
         <div>
-          <section className="card panel" data-testid="panel-materials"><div className="panel-title"><div><span className="eyebrow">Your source shelf</span><h2>Materials</h2></div><><input ref={inputRef} type="file" hidden accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png" onChange={(e) => upload(e.target.files?.[0])} data-testid="input-material-file" /><button className="btn btn-primary" onClick={() => inputRef.current?.click()} disabled={requestUpload.isPending || createMaterial.isPending} data-testid="button-upload-material"><Upload size={15} /> {requestUpload.isPending || createMaterial.isPending ? 'Uploading…' : 'Add material'}</button></></div>{uploadError && <div className="error-box" style={{ marginBottom: 12 }} data-testid="error-material-upload">{uploadError}</div>}{materials.isLoading ? <div className="skeleton skeleton-card" /> : materials.isError ? <div className="error-box" data-testid="error-materials">Materials did not load. <button className="btn btn-ghost" onClick={() => materials.refetch()} data-testid="button-retry-materials">Retry</button></div> : materialsList.length === 0 ? <EmptyState icon={Paperclip} title="Your shelf is empty" copy="Add a lecture deck, reading, or set of notes. Study Buddy will keep the source close." /> : materialsList.map((material) => <MaterialRow key={material.id} material={material} onDelete={() => { if (window.confirm(`Delete ${material.name}?`)) deleteMaterial.mutate({ courseId, materialId: material.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListMaterialsQueryKey(courseId) }) }); }} />)}</section>
+          <section className="card panel" data-testid="panel-materials"><div className="panel-title"><div><span className="eyebrow">Your source shelf</span><h2>Materials</h2></div><><input ref={inputRef} type="file" hidden accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png" onChange={(e) => upload(e.target.files?.[0])} data-testid="input-material-file" /><button className="btn btn-primary" onClick={() => inputRef.current?.click()} disabled={requestUpload.isPending || createMaterial.isPending} data-testid="button-upload-material"><Upload size={15} /> {requestUpload.isPending || createMaterial.isPending ? 'Uploading…' : 'Add material'}</button></></div>{uploadError && <div className="error-box" style={{ marginBottom: 12 }} data-testid="error-material-upload">{uploadError}</div>}{materials.isLoading ? <div className="skeleton skeleton-card" /> : materials.isError ? <div className="error-box" data-testid="error-materials">Materials did not load. <button className="btn btn-ghost" onClick={() => materials.refetch()} data-testid="button-retry-materials">Retry</button></div> : materialsList.length === 0 ? <EmptyState icon={Paperclip} title="Your shelf is empty" copy="Add a lecture deck, reading, or set of notes. Study Buddy will keep the source close." /> : materialsList.map((material) => <MaterialRow key={material.id} material={material} courseId={courseId} onDelete={() => { if (window.confirm(`Delete ${material.name}?`)) deleteMaterial.mutate({ courseId, materialId: material.id }, { onSuccess: () => qc.invalidateQueries({ queryKey: getListMaterialsQueryKey(courseId) }) }); }} />)}</section>
           <section className="card panel" style={{ marginTop: 14 }} data-testid="panel-course-progress"><div className="panel-title"><div><span className="eyebrow">A useful read</span><h2>Progress, not pressure</h2></div><span className="tag ready">{progress.data?.currentDifficulty ?? 'beginner'}</span></div><ProgressBar value={progress.data?.progress ?? current.progress} testId="progress-course-detail" /><div className="progress-meta"><span data-testid="text-course-progress">{progress.data?.progress ?? current.progress}% understood</span><span>{progress.data?.totalAnswered ?? 0} questions answered</span></div><div style={{ display: 'flex', gap: 18, marginTop: 19 }}><div><strong style={{ font: '700 22px var(--app-font-mono)', color: 'hsl(var(--primary))' }} data-testid="value-correct-count">{progress.data?.correctCount ?? 0}</strong><div className="small-copy">correct</div></div><div><strong style={{ font: '700 22px var(--app-font-mono)', color: 'hsl(var(--accent-foreground))' }} data-testid="value-incorrect-count">{progress.data?.incorrectCount ?? 0}</strong><div className="small-copy">still growing</div></div><div style={{ flex: 1 }}><div className="small-copy">Topics to revisit</div><div style={{ marginTop: 5, display: 'flex', gap: 5, flexWrap: 'wrap' }}>{(progress.data?.weakTopics ?? []).slice(0, 3).map((topic) => <span className="tag" key={topic} data-testid={`tag-weak-topic-${topic}`}>{topic}</span>)}</div></div></div></section>
           {startedSession && nextQuestion.isPending && <section className="card panel" style={{ marginTop: 14 }} data-testid="state-question-loading"><div className="skeleton" style={{ width: '70%', height: 17 }} /><div className="skeleton" style={{ width: '95%', height: 65, marginTop: 14 }} /></section>}
           {startedSession && nextQuestion.isError && <div className="error-box" style={{ marginTop: 14 }} data-testid="error-question">The next question is not ready yet. Your session can continue without it.</div>}
