@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { hasUnreadableCharacters, lexicalOverlap, normalizeStudyText } from "./textQuality";
 import { db, materialChunksTable, materialsTable } from "@workspace/db";
 
@@ -119,7 +119,7 @@ function parseJson<T>(content: string): T {
   }
 }
 
-export async function retrieveCourseContext(ownerId: string, courseId: number, prompt: string) {
+export async function retrieveCourseContext(ownerId: string, courseId: number, prompt: string, excludeMaterialId?: number) {
   const chunks = await db.select({
     id: materialChunksTable.id,
     materialId: materialChunksTable.materialId,
@@ -136,6 +136,7 @@ export async function retrieveCourseContext(ownerId: string, courseId: number, p
       eq(materialsTable.ownerId, ownerId),
       eq(materialsTable.courseId, courseId),
       eq(materialsTable.status, "ready"),
+      ...(excludeMaterialId === undefined ? [] : [ne(materialChunksTable.materialId, excludeMaterialId)]),
     ));
   const terms = normalizeStudyText(prompt).toLowerCase().split(/\W+/).filter((term) => term.length > 2);
   return chunks
