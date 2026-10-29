@@ -31,6 +31,26 @@ export const learningQuestionsTable = pgTable("learning_questions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const pastPaperQuestionsTable = pgTable("past_paper_questions", {
+  id: serial("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  courseId: integer("course_id").notNull(),
+  sourceMaterialId: integer("source_material_id").notNull(),
+  questionNumber: text("question_number"),
+  prompt: text("prompt").notNull(),
+  options: jsonb("options").notNull().default([]),
+  questionType: text("question_type").notNull().default("short_answer"),
+  marks: integer("marks"),
+  sourceExcerpt: text("source_excerpt").notNull(),
+  correctAnswer: text("correct_answer"),
+  explanation: text("explanation"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertPastPaperQuestionSchema = createInsertSchema(pastPaperQuestionsTable).omit({ id: true, createdAt: true });
+export type PastPaperQuestion = typeof pastPaperQuestionsTable.$inferSelect;
+export type InsertPastPaperQuestion = z.infer<typeof insertPastPaperQuestionSchema>;
+
 export const learningResultsTable = pgTable("learning_results", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").notNull(),
