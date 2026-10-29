@@ -1,0 +1,29 @@
+name: Past-paper feature build validation
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["feature/past-paper-question-mode"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm --filter @workspace/api-server run build
+      - run: pnpm --filter @workspace/study-buddy-ai run build
