@@ -158,6 +158,7 @@ router.delete("/courses/:courseId", async (req, res): Promise<void> => {
   await db.delete(tutorHistoryTable).where(and(eq(tutorHistoryTable.courseId, course.id), eq(tutorHistoryTable.ownerId, req.userId!)));
   await db.delete(learningResultsTable).where(and(eq(learningResultsTable.courseId, course.id), eq(learningResultsTable.ownerId, req.userId!)));
   await db.delete(learningQuestionsTable).where(and(eq(learningQuestionsTable.courseId, course.id), eq(learningQuestionsTable.ownerId, req.userId!)));
+  await db.delete(pastPaperQuestionsTable).where(and(eq(pastPaperQuestionsTable.courseId, course.id), eq(pastPaperQuestionsTable.ownerId, req.userId!)));
   await db.delete(coursesTable).where(and(eq(coursesTable.id, course.id), eq(coursesTable.ownerId, req.userId!)));
   res.sendStatus(204);
 });
@@ -256,6 +257,11 @@ router.delete("/courses/:courseId/materials/:materialId", async (req, res): Prom
     eq(materialChunksTable.materialId, params.data.materialId),
     eq(materialChunksTable.courseId, params.data.courseId),
     eq(materialChunksTable.ownerId, req.userId!),
+  ));
+  await db.delete(pastPaperQuestionsTable).where(and(
+    eq(pastPaperQuestionsTable.sourceMaterialId, params.data.materialId),
+    eq(pastPaperQuestionsTable.courseId, params.data.courseId),
+    eq(pastPaperQuestionsTable.ownerId, req.userId!),
   ));
   const [material] = await db.delete(materialsTable).where(and(
     eq(materialsTable.id, params.data.materialId),
