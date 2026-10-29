@@ -335,8 +335,15 @@ router.post("/courses/:courseId/materials/:materialId/past-paper/extract", async
         eq(materialChunksTable.courseId, courseId),
         eq(materialChunksTable.ownerId, req.userId!),
       )).orderBy(asc(materialChunksTable.chunkIndex));
-    const paperText = chunks.map((chunk) => chunk.content).join("\n\n");
-    const extracted = await extractPastPaperQuestions(paperText);
+    const extracted: Awaited<ReturnType<typeof extractPastPaperQuestions>> = [];
+    // Process the whole paper in bounded batches instead of silently truncating long exams.
+    for (let start = 0; start < chunks.length; start += 18) {
+      const batchText = chunks.slice(start, start + 18).map((chunk) => chunk.content).join("\n\n");
+      const batchQuestions = await extractPastPaperQuestions(batchText);
+      for (const item of batchQuestions) {
+        if (!extracted.some((existing) => existing.prompt.toLowerCase() === item.prompt.toLowerCase())) extracted.push(item);
+      }
+    }
     if (!extracted.length) {
       res.status(422).json({ error: "No verifiable questions were found in this paper. Check that its text is readable or try a clearer PDF scan." }); return;
     }
@@ -426,8 +433,7 @@ router.post("/courses/:courseId/materials/:materialId/past-paper/questions/:ques
     res.json({ id: question.id, answer: question.correctAnswer, explanation: question.explanation, sourceFiles: [] }); return;
   }
   try {
-    const context = (await retrieveCourseContext(req.userId!, courseId, question.prompt))
-      .filter((item) => item.materialId !== materialId)
+    const context = await retrieveCourseContext(req.userId!, courseId, question.prompt, materialId)
       .map((item) => ({ name: item.name, content: item.content }));
     const generated = await generatePastPaperAnswer(question.prompt, context);
     const [saved] = await db.update(pastPaperQuestionsTable).set({
