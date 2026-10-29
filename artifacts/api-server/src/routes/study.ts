@@ -337,7 +337,7 @@ router.post("/courses/:courseId/materials/:materialId/past-paper/extract", async
       )).orderBy(asc(materialChunksTable.chunkIndex));
     const extracted: Awaited<ReturnType<typeof extractPastPaperQuestions>> = [];
     // Process the whole paper in bounded batches instead of silently truncating long exams.
-    for (let start = 0; start < chunks.length; start += 18) {
+    for (let start = 0; start < chunks.length; start += 17) {
       const batchText = chunks.slice(start, start + 18).map((chunk) => chunk.content).join("\n\n");
       const batchQuestions = await extractPastPaperQuestions(batchText);
       for (const item of batchQuestions) {
